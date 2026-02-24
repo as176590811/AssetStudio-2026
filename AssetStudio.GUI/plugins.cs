@@ -71,6 +71,33 @@ namespace AssetStudio.GUI
             },
             new PluginInfo
             {
+                Name = "Wav2BcwavGui",
+                DisplayName = "bcwav转换器",
+                DownloadUrl = "https://gitee.com/valkylia-goddess/AssetStudio-Neptune/releases/download/down/wav2bcwav_gui.dll",
+                FileName = "wav2bcwav_gui.dll",
+                IsExternalTool = false,
+                IsBuiltInDll = true,
+            },
+            new PluginInfo
+            {
+                Name = "Wav2BfwavGui",
+                DisplayName = "bfwav转换器",
+                DownloadUrl = "https://gitee.com/valkylia-goddess/AssetStudio-Neptune/releases/download/down/wav2bfwav_gui.dll",
+                FileName = "wav2bfwav_gui.dll",
+                IsExternalTool = false,
+                IsBuiltInDll = true,
+            },
+            new PluginInfo
+            {
+                Name = "Wav2BrwavGui",
+                DisplayName = "brwav转换器",
+                DownloadUrl = "https://gitee.com/valkylia-goddess/AssetStudio-Neptune/releases/download/down/wav2brwav_gui.dll",
+                FileName = "wav2brwav_gui.dll",
+                IsExternalTool = false,
+                IsBuiltInDll = true,
+            },
+            new PluginInfo
+            {
                 Name = "SuperToolbox",
                 DisplayName = "超级工具箱",
                 DownloadUrl = "https://gitee.com/valkylia-goddess/AssetStudio-Neptune/releases/download/down/Super-toolbox.dll",
