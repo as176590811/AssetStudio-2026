@@ -16,6 +16,7 @@
 
 	<ItemGroup>
 		<None Remove="Libraries\OpenTK.WinForms.dll" />
+		<None Remove="oo2core_9_win64.dll" />
 		<None Remove="Resources\preview.png" />
 	</ItemGroup>
 
@@ -58,7 +59,6 @@
 			<TargetPath>x64\%(Filename)%(Extension)</TargetPath>
 		</ContentWithTargetPath>
 	</ItemGroup>
-
 	<ItemGroup>
 		<Resource Include="Resources\preview.png" />
 	</ItemGroup>
@@ -76,21 +76,10 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<Content Include="plugins\oo2core_9_win64.dll">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Link>oo2core_9_win64.dll</Link>
-		</Content>
-		<Content Include="plugins\UnityPlayer.dll">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-			<Link>UnityPlayer.dll</Link>
-		</Content>
 		<None Update="Properties\Settings.settings">
 			<Generator>SettingsSingleFileGenerator</Generator>
 			<LastGenOutput>Settings.Designer.cs</LastGenOutput>
-		</None>
-		<None Update="xinyuetongxing.dll">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
+		</None>		
 	</ItemGroup>
 
 	<Target Name="CopyBmsScriptFolder" AfterTargets="AfterBuild">
