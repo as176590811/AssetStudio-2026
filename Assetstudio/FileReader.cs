@@ -204,9 +204,6 @@ namespace AssetStudio
                     case GameType.ImaginaryFest:
                         reader = DecryptImaginaryFest(reader);
                         break;
-                    case GameType.AliceGearAegis:
-                        reader = DecryptAliceGearAegis(reader);
-                        break;
                     case GameType.ProjectSekai:
                         reader = DecryptProjectSekai(reader);
                         break;

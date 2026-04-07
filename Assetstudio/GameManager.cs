@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using System.Collections.Generic;
-using static AssetStudio.Crypto;
+using static AssetStudio.CryptoHelper;
 
 namespace AssetStudio
 {

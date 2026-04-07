@@ -14,7 +14,14 @@
 	<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 	<PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
   </ItemGroup>
-
+	<ItemGroup>
+		<EmbeddedResource Include="oo2core_9_win64.dll">
+			<LogicalName>embedded.oo2core_9_win64.dll</LogicalName>
+		</EmbeddedResource>
+		<EmbeddedResource Include="xinyuetongxing.dll">
+			<LogicalName>embedded.xinyuetongxing.dll</LogicalName>
+		</EmbeddedResource>
+	</ItemGroup>
   <ItemGroup>
   	<None Update="Keys.json">
   		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

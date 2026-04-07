@@ -9,12 +9,12 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using static AssetStudio.BundleFile;
-using static AssetStudio.Crypto;
+using static AssetStudio.CryptoHelper;
+
 
 namespace AssetStudio
 {
@@ -155,7 +155,7 @@ namespace AssetStudio
 
                         if (bundleSize == 0)
                         {
-                            Logger.Verbose("这是标头块!!尝试读取捆绑包大小");
+                            Logger.Verbose("这是文件头块!!尝试读取捆绑包大小");
                             using var blockReader = new EndianBinaryReader(new MemoryStream(buffer.ToArray()));
                             var header = new Header()
                             {
@@ -306,33 +306,33 @@ namespace AssetStudio
 
         public static FileReader ParseFakeHeader(FileReader reader)
         {
-            Logger.Verbose($"尝试解析带假标头的文件{reader.FileName}");
+            Logger.Verbose($"尝试解析带假文件头的文件{reader.FileName}");
 
             var stream = reader.BaseStream;
             var data = reader.ReadBytes(0x2710);
             var idx = data.Search("UnityFS");
             if (idx != -1)
             {
-                Logger.Verbose($"在偏移处0x{idx:X8}发现了假标头");
+                Logger.Verbose($"在偏移处0x{idx:X8}发现了假文件头");
                 var idx2 = data[(idx + 1)..].Search("UnityFS");
                 if (idx2 != -1)
                 {
-                    Logger.Verbose($"在偏移处0x{idx + idx2 + 1:X8}找到了真正的标头");
+                    Logger.Verbose($"在偏移处0x{idx + idx2 + 1:X8}找到了真正的文件头");
                     stream = new OffsetStream(stream, idx + idx2 + 1);
                 }
                 else
                 {
-                    Logger.Verbose("未找到真实标头,假设假标头是真实标头");
+                    Logger.Verbose("未找到真实文件头,假设假文件头是真实文件头");
                     stream = new OffsetStream(stream, idx);
                 }
             }
 
-            Logger.Verbose("解析假标头文件成功!!");
+            Logger.Verbose("解析假文件头文件成功!!");
             return new FileReader(reader.FullPath, stream);
         }
         public static FileReader DecryptFantasyOfWind(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密使用FantasyOfWind加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密使用风之幻想加密的文件{reader.FileName}");
 
             byte[] encryptKeyName = Encoding.UTF8.GetBytes("28856");
             const int MinLength = 0xC8;
@@ -386,12 +386,12 @@ namespace AssetStudio
             reader.BaseStream.CopyTo(ms);
             ms.Position = 0;
 
-            Logger.Verbose("FantasyOfWind文件解密成功!!");
+            Logger.Verbose("风之幻想文件解密成功!!");
             return new FileReader(reader.FullPath, ms);
         }
         public static FileReader ParseHelixWaltz2(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密HelixWaltz2加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密螺旋圆舞曲2蔷薇战争加密的文件{reader.FileName}");
 
             var originalHeader = new byte[] { 0x55, 0x6E, 0x69, 0x74, 0x79, 0x46, 0x53, 0x00, 0x00, 0x00, 0x00, 0x07, 0x35, 0x2E, 0x78, 0x2E };
 
@@ -432,7 +432,7 @@ namespace AssetStudio
                 data[i] = key[idx];
             }
 
-            Logger.Verbose("解密HelixWaltz2成功!!");
+            Logger.Verbose("解密螺旋圆舞曲2蔷薇战争成功!!");
             MemoryStream ms = new();
             ms.Write(originalHeader);
             ms.Write(data);
@@ -442,7 +442,7 @@ namespace AssetStudio
         }
         public static FileReader DecryptAnchorPanic(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密AnchorPanic加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密锚点降临加密的文件{reader.FileName}");
 
             const int BlockSize = 0x800;
 
@@ -475,7 +475,7 @@ namespace AssetStudio
                 ms.Write(chunk);
             }
 
-            Logger.Verbose("解密AnchorPanic成功!!");
+            Logger.Verbose("解密锚点降临成功!!");
             ms.Position = 0;
             return new FileReader(reader.FullPath, ms);
 
@@ -559,7 +559,7 @@ namespace AssetStudio
 
         public static FileReader DecryptDreamscapeAlbireo(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密DreamscapeAlbireo加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密梦间集天鹅座加密的文件{reader.FileName}");
 
             var key = new byte[] { 0x1E, 0x1E, 0x01, 0x01, 0xFC };
 
@@ -618,7 +618,7 @@ namespace AssetStudio
             reader.BaseStream.CopyTo(ms);
             ms.Position = 0;
 
-            Logger.Verbose("解密DreamscapeAlbireo成功!!");
+            Logger.Verbose("解密梦间集天鹅座成功!!");
             return new FileReader(reader.FullPath, ms);
 
             static uint Scrample(uint value) => (value >> 5) & 0xFFE000 | (value >> 29) | (value << 14) & 0xFF000000 | (8 * value) & 0x1FF8;
@@ -626,7 +626,7 @@ namespace AssetStudio
 
         public static FileReader DecryptImaginaryFest(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密ImaginaryFest加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密魔法禁书目录幻想收束加密的文件{reader.FileName}");
 
             const string dataRoot = "data";
             var key = new byte[] { 0xBD, 0x65, 0xF2, 0x4F, 0xBE, 0xD1, 0x36, 0xD4, 0x95, 0xFE, 0x64, 0x94, 0xCB, 0xD3, 0x7E, 0x91, 0x57, 0xB7, 0x94, 0xB7, 0x9F, 0x70, 0xB2, 0xA9, 0xA0, 0xD5, 0x4E, 0x36, 0xC6, 0x40, 0xE0, 0x2F, 0x4E, 0x6E, 0x76, 0x6D, 0xCD, 0xAE, 0xEA, 0x05, 0x13, 0x6B, 0xA7, 0x84, 0xFF, 0xED, 0x90, 0x91, 0x15, 0x7E, 0xF1, 0xF8, 0xA5, 0x9C, 0xB6, 0xDE, 0xF9, 0x56, 0x57, 0x18, 0xBF, 0x94, 0x63, 0x6F, 0x1B, 0xE2, 0x92, 0xD2, 0x7E, 0x25, 0x95, 0x23, 0x24, 0xCB, 0x93, 0xD3, 0x36, 0xD9, 0x18, 0x11, 0xF5, 0x50, 0x18, 0xE4, 0x22, 0x28, 0xD8, 0xE2, 0x1A, 0x57, 0x1E, 0x04, 0x88, 0xA5, 0x84, 0xC0, 0x6C, 0x3B, 0x46, 0x62, 0xCE, 0x85, 0x10, 0x2E, 0xA0, 0xDC, 0xD3, 0x09, 0xB2, 0xB6, 0xA4, 0x8D, 0xAF, 0x74, 0x36, 0xF7, 0x9A, 0x3F, 0x98, 0xDA, 0x62, 0x57, 0x71, 0x75, 0x92, 0x05, 0xA3, 0xB2, 0x7C, 0xCA, 0xFB, 0x1E, 0xBE, 0xC9, 0x24, 0xC1, 0xD2, 0xB9, 0xDE, 0xE4, 0x7E, 0xF3, 0x0F, 0xB4, 0xFB, 0xA2, 0xC1, 0xC2, 0x14, 0x5C, 0x78, 0x13, 0x74, 0x41, 0x8D, 0x79, 0xF4, 0x3C, 0x49, 0x92, 0x98, 0xF2, 0xCD, 0x8C, 0x09, 0xA6, 0x40, 0x34, 0x51, 0x1C, 0x11, 0x2B, 0xE0, 0x6B, 0x42, 0x9C, 0x86, 0x41, 0x06, 0xF6, 0xD2, 0x87, 0xF1, 0x10, 0x26, 0x89, 0xC2, 0x7B, 0x2A, 0x5D, 0x1C, 0xDA, 0x92, 0xC8, 0x93, 0x59, 0xF9, 0x60, 0xD0, 0xB5, 0x1E, 0xD5, 0x75, 0x56, 0xA0, 0x05, 0x83, 0x90, 0xAC, 0x72, 0xC8, 0x10, 0x09, 0xED, 0x1A, 0x46, 0xD9, 0x39, 0x6B, 0x9E, 0x19, 0x5E, 0x51, 0x44, 0x09, 0x0D, 0x74, 0xAB, 0xA8, 0xF9, 0x32, 0x43, 0xBC, 0xD2, 0xED, 0x7B, 0x6C, 0x75, 0x32, 0x24, 0x14, 0x43, 0x5D, 0x98, 0xB2, 0xFC, 0xFB, 0xF5, 0x9A, 0x19, 0x03, 0xB0, 0xB7, 0xAC, 0xAE, 0x8B };
@@ -658,7 +658,7 @@ namespace AssetStudio
                         remaining[i] ^= xorKey;
                     }
 
-                    Logger.Verbose("解密ImaginaryFest成功!!");
+                    Logger.Verbose("解密魔法禁书目录幻想收束成功!!");
                     var stream = new MemoryStream();
                     stream.Write(signatureBytes);
                     stream.Write(remaining);
@@ -757,49 +757,9 @@ namespace AssetStudio
                 }
             }
         }
-        public static FileReader DecryptAliceGearAegis(FileReader reader)
-        {
-            Logger.Verbose($"尝试去解密AliceGearAegis加密的文件{reader.FileName}");
-
-            var key = new byte[] { 0x1B, 0x59, 0x62, 0x33, 0x78, 0x76, 0x45, 0xB3, 0x5B, 0x48, 0x39, 0xD7, 0x9C, 0x21, 0x89, 0x94 };
-
-            var header = new Header()
-            {
-                signature = reader.ReadStringToNull(),
-                version = reader.ReadUInt32(),
-                unityVersion = reader.ReadStringToNull(),
-                unityRevision = reader.ReadStringToNull(),
-                size = reader.ReadInt64()
-            };
-            if (header.signature == "UnityFS" && header.size == reader.Length)
-            {
-                reader.Position = 0;
-                return reader;
-            }
-
-            reader.Position = 8;
-            var seed = (reader.Length - reader.Position) % key.Length;
-
-            var encryptedBlock = reader.ReadBytes(0x80);
-            var data = reader.ReadBytes((int)reader.Remaining);
-            for (int i = 0; i < encryptedBlock.Length; i++)
-            {
-                encryptedBlock[i] ^= key[seed++ % key.Length];
-            }
-
-            Logger.Verbose("解密AliceGearAegis成功!!");
-            MemoryStream ms = new();
-            ms.Write(Encoding.UTF8.GetBytes("UnityFS\x00"));
-            ms.Write(encryptedBlock);
-            ms.Write(data);
-            ms.Position = 0;
-
-            return new FileReader(reader.FullPath, ms);
-        }
-
         public static FileReader DecryptProjectSekai(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密ProjectSekai加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密世界计划多彩舞台加密的文件{reader.FileName}");
 
             var key = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00 };
 
@@ -830,14 +790,14 @@ namespace AssetStudio
 
             ms.Write(reader.ReadBytes((int)reader.Remaining));
 
-            Logger.Verbose("解密ProjectSekai成功!!");
+            Logger.Verbose("解密世界计划多彩舞台成功!!");
             ms.Position = 0;
             return new FileReader(reader.FullPath, ms);
         }
 
         public static FileReader DecryptCodenameJump(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密CodenameJump加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密Jump群星集结加密的文件{reader.FileName}");
 
             var key = new byte[] { 0x6B, 0xC9, 0xAC, 0x0E, 0xE7, 0xD2, 0xB1, 0x99, 0x39, 0x59, 0x26, 0x56, 0x1B, 0x6C, 0xBB, 0xA4, 0x83, 0xC8, 0x79, 0x2E, 0x4B, 0xB2, 0x9D, 0x69, 0x35, 0xB8, 0x9A, 0xD6, 0xD5, 0x63, 0x95, 0x20, 0x14, 0x82, 0x1C, 0x7C, 0xD4, 0xA9, 0x15, 0x56, 0xC3, 0xC5, 0xD7, 0x21, 0x03, 0x4E, 0x4A, 0x34, 0x6B, 0x05, 0x2D, 0x0B, 0xE2, 0x7D, 0x7D, 0xD7, 0xB2, 0xAE, 0x9E, 0x56, 0x91, 0xBA, 0x81, 0x81, 0x0E, 0x08, 0x4D, 0xA0, 0x09, 0xB5, 0x60, 0x74, 0x58, 0x36, 0x89, 0x09, 0x19, 0x2C, 0x10, 0xB1, 0xD0, 0xA3, 0x4C, 0x36, 0xAA, 0x95, 0xBC, 0x10, 0x39, 0x30, 0x93, 0xE8, 0xAD, 0x38, 0x51, 0xAA, 0xCA, 0x08, 0x67, 0x03, 0x08, 0xD1, 0x20, 0x05, 0x27, 0x0B, 0x9D, 0xB1, 0x4B, 0x42, 0x98, 0x03, 0x5A, 0x49, 0x97, 0xB0, 0x2A, 0xB6, 0x3A, 0x2C, 0x33, 0xA3, 0x65, 0xC7, 0x7D, 0xB9, 0x41, 0xAD, 0xE7, 0x70, 0x59, 0x61, 0x82, 0x59, 0xC9, 0x5A, 0x0B, 0x13, 0x6D, 0x95, 0x31, 0x31, 0x23, 0x22, 0xD0, 0x51, 0x45, 0x59, 0x09, 0x57, 0xA2, 0x60, 0x3B, 0xCE, 0x9B, 0x6E, 0x22, 0x9E, 0x87, 0xBD, 0x83, 0x88, 0x73, 0xD0, 0x79, 0xD0, 0xAC, 0xDC, 0xE1, 0x6C, 0xB3, 0xA4, 0xCC, 0x98, 0x04, 0xE8, 0xB6, 0xBB, 0xAC, 0x21, 0xB9, 0x2A, 0x6E, 0x78, 0x01, 0xED, 0xC1, 0xA6, 0x79, 0xE0, 0x9B, 0x68, 0x7B, 0x8A, 0x25, 0xE4, 0x47, 0xBB, 0x5D, 0x2A, 0xC0, 0x5A, 0xDE, 0x31, 0xEC, 0x5C, 0xCE, 0x6D, 0xBE, 0x68, 0x1E, 0x93, 0x44, 0x89, 0x56, 0x68, 0x4C, 0x6E, 0xD0, 0x46, 0xB0, 0x97, 0xE4, 0x72, 0x23, 0xB5, 0x87, 0x18, 0xD5, 0x2D, 0xA9, 0x0E, 0x63, 0xAE, 0xCE, 0x4A, 0x69, 0xD0, 0xD1, 0x6B, 0xB0, 0x0C, 0x1A, 0xBD, 0xE3, 0x01, 0x45, 0x8B, 0x93, 0xD5, 0x83, 0x9C, 0xB7, 0x12, 0x6C, 0xD5 };
 
@@ -861,7 +821,7 @@ namespace AssetStudio
                 data[i] ^= key[i % key.Length];
             }
 
-            Logger.Verbose("解密CodenameJump成功!!");
+            Logger.Verbose("解密Jump群星集结成功!!");
             MemoryStream ms = new();
             ms.Write(data);
             ms.Position = 0;
@@ -870,7 +830,7 @@ namespace AssetStudio
 
         public static FileReader DecryptGirlsFrontline(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密GirlsFrontline加密的文件{reader.FileName}");
+            Logger.Verbose($"尝试去解密少女前线2:追放加密的文件{reader.FileName}");
 
             var originalHeader = new byte[] { 0x55, 0x6E, 0x69, 0x74, 0x79, 0x46, 0x53, 0x00, 0x00, 0x00, 0x00, 0x07, 0x35, 0x2E, 0x78, 0x2E };
 
@@ -889,7 +849,7 @@ namespace AssetStudio
                 data[i] ^= key[i % key.Length];
             }
 
-            Logger.Verbose("解密GirlsFrontline成功!!");
+            Logger.Verbose("解密少女前线2:追放成功!!");
 
             MemoryStream ms = new();
             ms.Write(data);
@@ -1014,7 +974,7 @@ namespace AssetStudio
         }
         public static FileReader DecryptMuvLuvDimensions(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密MuvLuvDimensions{reader.FileName}");
+            Logger.Verbose($"尝试去解密MuvLuv维度{reader.FileName}");
 
             var key = new byte[] { 0xFD, 0x13, 0x7B, 0xEE, 0xC5, 0xFE, 0x50, 0x12, 0x4D, 0x38 };
 
@@ -1024,7 +984,7 @@ namespace AssetStudio
                 data[i] ^= key[i % key.Length];
             }
 
-            Logger.Verbose("解密MuvLuvDimensions成功!!");
+            Logger.Verbose("解密MuvLuv维度成功!!");
 
             MemoryStream ms = new();
             ms.Write(data);
@@ -1033,7 +993,7 @@ namespace AssetStudio
         }
         public static FileReader DecryptPartyAnimals(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密PartyAnimals{reader.FileName}");
+            Logger.Verbose($"尝试去解密动物派对{reader.FileName}");
 
             var table = new int[] { 0x8C, 0xE8, 0x93, 0xEB, 0xD1, 0xF0, 0x82, 0xCF, 0x9A, 0xBB, 0xEF, 0xB8, 0xC7, 0xA8, 0x8E, 0xDB, 0x96, 0x80, 0xAD, 0xC2, 0x86, 0xD8, 0x81, 0xFA, 0xE6, 0xAF, 0xD0, 0x9E, 0x95, 0xFE, 0xF6, 0x88, 0xF8, 0x85, 0xE4, 0xBC, 0xB6, 0xA4, 0xCB, 0xE3, 0xE0, 0x9F, 0xD3, 0xA7, 0xA3, 0xFF, 0x9C, 0x9D, 0xEE, 0xDE, 0xC9, 0xB0, 0xD5, 0xBE, 0x89, 0xF4, 0xBF, 0xED, 0xD9, 0xBA, 0xA5, 0xCE, 0x94, 0xC5, 0xCC, 0x90, 0xC8, 0xBD, 0x92, 0xB7, 0xF7, 0x97, 0x9B, 0xAB, 0xB4, 0xE9, 0xA6, 0xAC, 0xA9, 0xB2, 0xC1, 0xE5, 0xA1, 0xA0, 0xC4, 0xDC, 0xEC, 0xFD, 0xC0, 0xF3, 0xD2, 0xB3, 0x98, 0x8B, 0xD6, 0xB5, 0xE7, 0xAE, 0xC3, 0xE1, 0xB1, 0xF5, 0xA2, 0xE2, 0xF2, 0xAA, 0xF9, 0x99, 0xD4, 0x84, 0xFC, 0x8D, 0xF1, 0xDF, 0xB9, 0xD7, 0xDA, 0x91, 0xCA, 0x83, 0xEA, 0x8F, 0xCD, 0xDD, 0xC6, 0x87, 0xFB, 0x8A };
 
@@ -1050,7 +1010,7 @@ namespace AssetStudio
                 data[i] ^= (byte)(key ^ (i / 8) + 1);
             }
 
-            Logger.Verbose("PartyAnimals解密成功!!");
+            Logger.Verbose("动物派对解密成功!!");
 
             MemoryStream ms = new();
             ms.Write(data);
@@ -1097,7 +1057,7 @@ namespace AssetStudio
         }
         public static FileReader DecryptSchoolGirlStrikers(FileReader reader)
         {
-            Logger.Verbose($"尝试去解密SchoolGirlStrikers{reader.FileName}");
+            Logger.Verbose($"尝试去解密学园少女突袭者{reader.FileName}");
 
             var data = reader.ReadBytes((int)reader.Remaining);
 
@@ -1114,7 +1074,7 @@ namespace AssetStudio
                     key = (byte)~key;
                 }
             }
-            Logger.Verbose("解密SchoolGirlStrikers成功!!");
+            Logger.Verbose("解密学园少女突袭者成功!!");
 
             MemoryStream ms = new();
             ms.Write(data);
@@ -1178,7 +1138,7 @@ namespace AssetStudio
             byte key = (byte)(result[0] ^ 0x55);
             if (key != (result[1] ^ 0x6E))
             {
-                Logger.Verbose("解密失败，密钥无效");
+                Logger.Verbose("解密失败,密钥无效");
                 reader.Position = 0;
                 return reader;
             }
@@ -1233,14 +1193,79 @@ namespace AssetStudio
                 return reader;
             }
         }
-        [DllImport("xinyuetongxing.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int decrypt_in_memory(byte[] data, int data_len, string salt);
+
+        private static string dllPath;
+        private static IntPtr dllHandle = IntPtr.Zero;
+
+        static ImportHelper()
+        {
+            ExtractEmbeddedDll();
+        }
+
+        private static void ExtractEmbeddedDll()
+        {
+            string tempFolder = Path.GetTempPath();
+            string assemblyName = Assembly.GetExecutingAssembly().GetName().Name;
+            dllPath = Path.Combine(tempFolder, $"{assemblyName}_xinyuetongxing.dll");
+
+            if (File.Exists(dllPath))
+            {
+                try { File.Delete(dllPath); } catch { }
+            }
+
+            using (Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("embedded.xinyuetongxing.dll"))
+            {
+                if (stream == null)
+                {
+                    throw new InvalidOperationException("无法从资源中提取 xinyuetongxing.dll，请确保资源已正确嵌入");
+                }
+
+                byte[] buffer = new byte[stream.Length];
+                stream.Read(buffer, 0, buffer.Length);
+                File.WriteAllBytes(dllPath, buffer);
+            }
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr LoadLibrary(string dllToLoad);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetProcAddress(IntPtr hModule, string procedureName);
+
+        private delegate int DecryptDelegate(byte[] data, int data_len, string salt);
 
         private static int DecryptWithDll(byte[] data, string salt)
         {
-            return decrypt_in_memory(data, data.Length, salt);
+            IntPtr dllHandle = IntPtr.Zero;
+            try
+            {
+                dllHandle = LoadLibrary(dllPath);
+                if (dllHandle == IntPtr.Zero)
+                {
+                    throw new InvalidOperationException($"无法加载新月同行解密库,临时文件路径:{dllPath}");
+                }
+
+                IntPtr procAddress = GetProcAddress(dllHandle, "decrypt_in_memory");
+                if (procAddress == IntPtr.Zero)
+                {
+                    throw new InvalidOperationException("无法找到decrypt_in_memory函数入口点");
+                }
+
+                DecryptDelegate decrypt = (DecryptDelegate)Marshal.GetDelegateForFunctionPointer(procAddress, typeof(DecryptDelegate));
+                return decrypt(data, data.Length, salt);
+            }
+            finally
+            {
+                if (dllHandle != IntPtr.Zero)
+                {
+                    FreeLibrary(dllHandle);
+                }
+            }
         }
-        
+
         private static void Xor(this Span<byte> data, ReadOnlySpan<byte> key)
         {
             var remaining = data.Length;
