@@ -25,7 +25,7 @@ namespace AssetStudio.GUI
         private AssetItem lastSelectedItem;
         private AssetBrowser assetBrowser;
         private DirectBitmap imageTexture;
-
+        private string tempBundleDir;
         private string tempClipboard;
         public MenuStrip MenuStrip1 => menuStrip1;
 
@@ -3095,6 +3095,115 @@ namespace AssetStudio.GUI
         private void filterTypeToolStripMenuItem_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private async void toolStripMenuItem21_Click(object sender, EventArgs e)
+        {
+            using (var dialog = new OpenFileDialog())
+            {
+                dialog.Title = "选择捆绑包文件";
+                dialog.Filter = "Unity Bundle|*.*";
+                dialog.Multiselect = true;
+                dialog.RestoreDirectory = true;
+
+                if (dialog.ShowDialog(this) != DialogResult.OK)
+                    return;
+
+                var bundleFiles = dialog.FileNames; 
+                var tempDir = Path.Combine(Path.GetTempPath(), "AssetStudio_Bundle_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tempDir);
+
+                try
+                {
+                    StatusStripUpdate($"正在解析{bundleFiles.Length}个捆绑包...");
+
+                    var allExtractedFiles = new List<string>();
+
+                    foreach (var bundleFile in bundleFiles)
+                    {
+                        StatusStripUpdate($"正在解析:{Path.GetFileName(bundleFile)}...");
+                        var extractedFiles = await Task.Run(() => ExtractUnityFiles(bundleFile, tempDir));
+                        allExtractedFiles.AddRange(extractedFiles);
+                    }
+
+                    StatusStripUpdate($"正在加载{allExtractedFiles.Count}个资源文件...");
+
+                    ResetForm();
+                    assetsManager.SpecifyUnityVersion = specifyUnityVersion.Text;
+                    assetsManager.Game = Studio.Game;
+
+                    await Task.Run(() => assetsManager.LoadFiles(allExtractedFiles.ToArray()));
+
+                    BuildAssetStructures();
+
+                    try { Directory.Delete(tempDir, true); } catch { }
+
+                    StatusStripUpdate($"成功加载{bundleFiles.Length}个捆绑包");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"加载失败:{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    StatusStripUpdate("加载失败");
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+        }
+        private void CleanupTempBundle()
+        {
+            if (!string.IsNullOrEmpty(tempBundleDir) && Directory.Exists(tempBundleDir))
+            {
+                try { Directory.Delete(tempBundleDir, true); } catch { }
+                tempBundleDir = null;
+            }
+        }
+        private List<string> ExtractUnityFiles(string bundlePath, string outputDir)
+        {
+            var extractedFiles = new List<string>();
+            var data = File.ReadAllBytes(bundlePath);
+            byte[] signature = Encoding.ASCII.GetBytes("UnityFS");
+            string baseName = Path.GetFileNameWithoutExtension(bundlePath);
+
+            List<int> offsets = new List<int>();
+            for (int i = 0; i < data.Length - signature.Length; i++)
+            {
+                bool found = true;
+                for (int j = 0; j < signature.Length; j++)
+                {
+                    if (data[i + j] != signature[j])
+                    {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found)
+                {
+                    offsets.Add(i);
+                    i += signature.Length - 1;
+                }
+            }
+
+            for (int i = 0; i < offsets.Count; i++)
+            {
+                int start = offsets[i];
+                int end = (i + 1 < offsets.Count) ? offsets[i + 1] : data.Length;
+                int length = end - start;
+
+                byte[] fileData = new byte[length];
+                Array.Copy(data, start, fileData, 0, length);
+
+                string path = Path.Combine(outputDir, $"{baseName}_{i:D4}.asset");
+                File.WriteAllBytes(path, fileData);
+                extractedFiles.Add(path);
+            }
+            return extractedFiles;
+        }
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool FreeConsole();
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            CleanupTempBundle();
+            base.OnFormClosed(e);
         }
     }
 }
