@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -104,7 +105,7 @@ namespace AssetStudio.GUI
                 FileName = "Super-toolbox.dll",
                 IsExternalTool = false,
                 IsBuiltInDll = true
-            },          
+            },
             new PluginInfo
             {
                 Name = "Sofdec2Viewer",
@@ -217,10 +218,13 @@ namespace AssetStudio.GUI
             {
                 Name = "cmake-gui",
                 DisplayName = "cmakegui汉化版",
-                DownloadUrl = "https://gitee.com/valkylia-goddess/AssetStudio-Neptune/releases/download/down/cmake-gui.exe",
+                DownloadUrl = "https://gitee.com/valkylia-goddess/AssetStudio-Neptune/releases/download/down/cmakegui-4.3.1.zip",
                 FileName = "cmake-gui.exe",
                 IsExternalTool = true,
-                IsBuiltInDll = false
+                IsBuiltInDll = false,
+                IsZipFile = true,
+                ExeFileName = "cmake-gui.exe",
+                ExtractFolder = "cmakegui-4.3.1"
             },
             new PluginInfo
             {
@@ -385,29 +389,14 @@ namespace AssetStudio.GUI
                 if (!Directory.Exists(extractFolderPath))
                     return null;
 
-                string directPath = Path.Combine(extractFolderPath, plugin.ExeFileName);
-                if (File.Exists(directPath))
-                    return directPath;
-
                 try
                 {
                     var files = Directory.GetFiles(extractFolderPath, plugin.ExeFileName, SearchOption.AllDirectories);
                     if (files.Length > 0)
                         return files[0];
-
-                    var allExeFiles = Directory.GetFiles(extractFolderPath, "*.exe", SearchOption.AllDirectories);
-                    if (allExeFiles.Length > 0)
-                    {
-                        var bestMatch = allExeFiles.FirstOrDefault(f =>
-                            Path.GetFileNameWithoutExtension(f).Contains(plugin.Name, StringComparison.OrdinalIgnoreCase) ||
-                            Path.GetFileNameWithoutExtension(f).Contains(Path.GetFileNameWithoutExtension(plugin.ExeFileName), StringComparison.OrdinalIgnoreCase));
-
-                        return bestMatch ?? allExeFiles[0];
-                    }
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Debug.WriteLine($"查找可执行文件时出错:{ex.Message}");
                     return null;
                 }
             }
@@ -577,97 +566,69 @@ namespace AssetStudio.GUI
         }
         public class DownloadSpeedCalculator
         {
-            private DateTime startTime;
-            private long totalBytes;
             private DateTime lastUpdateTime;
             private long lastBytes;
-            private double smoothedSpeed = 0;
+            private double currentSpeed = 0;
 
             public void Start()
             {
-                startTime = DateTime.Now;
-                lastUpdateTime = startTime;
-                totalBytes = 0;
+                lastUpdateTime = DateTime.Now;
                 lastBytes = 0;
-                smoothedSpeed = 0;
-            }
-
-            public void AddBytes(long bytes)
-            {
-                totalBytes += bytes;
+                currentSpeed = 0;
             }
 
             public void Stop()
             {
             }
 
-            public double ElapsedTime => (DateTime.Now - startTime).TotalSeconds;
-
-            public (double Speed, string Unit, string ETA) GetSpeedInfo(long downloadedBytes, long totalBytes)
+            public (double Speed, string ETA) GetSpeedInfo(long downloadedBytes, long totalBytes)
             {
-                var currentTime = DateTime.Now;
-                var timeDiff = (currentTime - lastUpdateTime).TotalSeconds;
+                var now = DateTime.Now;
+                var timeDiff = (now - lastUpdateTime).TotalSeconds;
 
-                if (timeDiff < 0.1)
+                if (timeDiff >= 0.5 && lastBytes > 0)
                 {
-                    return (smoothedSpeed, smoothedSpeed > 1024 ? "MB/s" : "KB/s", "");
+                    double bytesPerSecond = (downloadedBytes - lastBytes) / timeDiff;
+                    currentSpeed = bytesPerSecond / (1024 * 1024);
+                    lastUpdateTime = now;
+                    lastBytes = downloadedBytes;
                 }
 
-                double currentSpeed = (downloadedBytes - lastBytes) / timeDiff / 1024;
-
-                if (smoothedSpeed == 0)
+                if (downloadedBytes > 0 && lastBytes == 0)
                 {
-                    smoothedSpeed = currentSpeed;
-                }
-                else
-                {
-                    smoothedSpeed = 0.7 * smoothedSpeed + 0.3 * currentSpeed;
-                }
-
-                lastUpdateTime = currentTime;
-                lastBytes = downloadedBytes;
-
-                double speed;
-                string unit;
-
-                if (smoothedSpeed > 1024)
-                {
-                    speed = smoothedSpeed / 1024;
-                    unit = "MB/s";
-                }
-                else
-                {
-                    speed = smoothedSpeed;
-                    unit = "KB/s";
+                    lastBytes = downloadedBytes;
+                    lastUpdateTime = now;
                 }
 
                 string eta = "";
-                if (totalBytes > 0)
+                if (totalBytes > 0 && currentSpeed > 0 && downloadedBytes < totalBytes)
                 {
                     long remainingBytes = totalBytes - downloadedBytes;
-                    if (remainingBytes > 0 && smoothedSpeed > 0)
+                    double etaSeconds = remainingBytes / (currentSpeed * 1024 * 1024);
+
+                    if (etaSeconds < 60)
                     {
-                        double etaSeconds = remainingBytes / (smoothedSpeed * 1024);
-                        if (etaSeconds < 60)
-                        {
-                            eta = $"{etaSeconds:F0}秒";
-                        }
-                        else if (etaSeconds < 3600)
-                        {
-                            eta = $"{etaSeconds / 60:F0}分";
-                        }
-                        else
-                        {
-                            eta = $"{etaSeconds / 3600:F1}小时";
-                        }
+                        eta = $"{etaSeconds:F0}秒";
+                    }
+                    else if (etaSeconds < 3600)
+                    {
+                        eta = $"{etaSeconds / 60:F0}分{etaSeconds % 60:F0}秒";
                     }
                     else
                     {
-                        eta = "完成";
+                        eta = $"{etaSeconds / 3600:F1}小时";
                     }
                 }
+                else if (downloadedBytes >= totalBytes && totalBytes > 0)
+                {
+                    eta = "完成";
+                }
+                else
+                {
+                    eta = "计算中...";
+                }
 
-                return (speed, unit, eta);
+                return (currentSpeed, eta);
             }
         }
         private static void DownloadPlugin(PluginInfo plugin, ToolStripMenuItem menuItem)
@@ -703,12 +664,12 @@ namespace AssetStudio.GUI
                             string foundExePath = FindExecutableFile(plugin);
                             if (foundExePath == null)
                             {
-                                throw new FileNotFoundException($"在解压后的文件中找不到 {plugin.ExeFileName}");
+                                throw new FileNotFoundException($"在解压后的文件中找不到{plugin.ExeFileName}");
                             }
 
                             File.Delete(filePath);
 
-                            Debug.WriteLine($"{plugin.DisplayName} 解压完成，找到文件:{foundExePath}");
+                            Debug.WriteLine($"{plugin.DisplayName}解压完成，找到文件:{foundExePath}");
                         }
                         catch (Exception ex)
                         {
@@ -755,7 +716,7 @@ namespace AssetStudio.GUI
                 if (filePath == null)
                 {
                     plugin.IsDownloaded = false;
-                    MessageBox.Show($"{plugin.DisplayName} 文件不存在，请重新下载", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"{plugin.DisplayName}文件不存在，请重新下载", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
@@ -895,7 +856,7 @@ namespace AssetStudio.GUI
                         if (isSuperToolbox && fileNotFound.FileName != null &&
                             fileNotFound.FileName.Contains("CriFsV2Lib.Definitions", StringComparison.OrdinalIgnoreCase))
                         {
-                            continue; 
+                            continue;
                         }
                         sb.AppendLine($"缺失依赖:{fileNotFound.FileName}");
                     }
@@ -1362,6 +1323,11 @@ namespace AssetStudio.GUI
 
                     await DownloadFileWithProgressAsync(plugin.DownloadUrl, filePath);
 
+                    if (plugin.IsZipFile && File.Exists(filePath))
+                    {
+                        await ExtractZipFile();
+                    }
+
                     statusLabel.Text = "下载完成！";
                     isDownloadCompleted = true;
                     this.DialogResult = DialogResult.OK;
@@ -1378,6 +1344,7 @@ namespace AssetStudio.GUI
                 {
                     DeleteIncompleteFile();
                     statusLabel.Text = $"下载错误:{ex.Message}";
+                    MessageBox.Show($"下载失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     this.DialogResult = DialogResult.Cancel;
                     this.Close();
                 }
@@ -1385,6 +1352,143 @@ namespace AssetStudio.GUI
                 {
                     downloadSpeedCalculator.Stop();
                     IsDownloading = false;
+                }
+            }
+
+            private async Task ExtractZipFile()
+            {
+                try
+                {
+                    string extractPath = Path.Combine(Plugins.pluginsDirectory, plugin.ExtractFolder);
+
+                    if (Directory.Exists(extractPath))
+                    {
+                        await Task.Run(() =>
+                        {
+                            int retryCount = 0;
+                            while (retryCount < 5)
+                            {
+                                try
+                                {
+                                    Directory.Delete(extractPath, true);
+                                    break;
+                                }
+                                catch
+                                {
+                                    retryCount++;
+                                    if (retryCount >= 5) throw;
+                                    Thread.Sleep(500);
+                                }
+                            }
+                        });
+                    }
+
+                    Directory.CreateDirectory(extractPath);
+
+                    await Task.Run(() =>
+                    {
+                        using (var archive = System.IO.Compression.ZipFile.OpenRead(filePath))
+                        {
+                            string commonRoot = GetCommonRootDirectory(archive);
+
+                            foreach (var entry in archive.Entries)
+                            {
+                                if (string.IsNullOrEmpty(entry.Name)) continue;
+
+                                string entryPath = entry.FullName;
+
+                                if (!string.IsNullOrEmpty(commonRoot) && entryPath.StartsWith(commonRoot))
+                                {
+                                    entryPath = entryPath.Substring(commonRoot.Length);
+                                }
+
+                                string destPath = Path.Combine(extractPath, entryPath);
+                                string destDir = Path.GetDirectoryName(destPath)!;
+
+                                if (!Directory.Exists(destDir))
+                                {
+                                    Directory.CreateDirectory(destDir);
+                                }
+
+                                entry.ExtractToFile(destPath, true);
+                            }
+                        }
+                    });
+
+                    string foundExe = FindFileRecursive(extractPath, plugin.ExeFileName);
+                    if (string.IsNullOrEmpty(foundExe))
+                    {
+                        throw new Exception($"解压后未找到目标文件: {plugin.ExeFileName}");
+                    }
+
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+
+                    int retry = 0;
+                    while (retry < 5)
+                    {
+                        try
+                        {
+                            if (File.Exists(filePath))
+                            {
+                                File.Delete(filePath);
+                            }
+                            break;
+                        }
+                        catch
+                        {
+                            retry++;
+                            if (retry >= 5) throw;
+                            await Task.Delay(300);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"解压失败：{ex.Message}");
+                }
+            }
+
+            private string GetCommonRootDirectory(System.IO.Compression.ZipArchive archive)
+            {
+                var entryPaths = archive.Entries
+                    .Where(e => !string.IsNullOrEmpty(e.Name))
+                    .Select(e => e.FullName.Replace('\\', '/'))
+                    .ToList();
+
+                if (entryPaths.Count == 0) return null;
+
+                string firstPath = entryPaths[0];
+                var parts = firstPath.Split('/');
+                string commonRoot = "";
+
+                for (int i = 0; i < parts.Length - 1; i++)
+                {
+                    string testPrefix = string.Join("/", parts.Take(i + 1)) + "/";
+
+                    bool allMatch = entryPaths.All(p => p.StartsWith(testPrefix));
+                    if (allMatch)
+                    {
+                        commonRoot = testPrefix;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                return string.IsNullOrEmpty(commonRoot) ? null : commonRoot;
+            }
+
+            private string FindFileRecursive(string directory, string fileName)
+            {
+                try
+                {
+                    return Directory.GetFiles(directory, fileName, SearchOption.AllDirectories).FirstOrDefault();
+                }
+                catch
+                {
+                    return null;
                 }
             }
 
@@ -1466,19 +1570,20 @@ namespace AssetStudio.GUI
             {
                 var speedInfo = downloadSpeedCalculator.GetSpeedInfo(bytesRead, totalBytes);
 
+                Action updateAction = () => {
+                    progressBar.Value = percentage;
+                    statusLabel.Text = $"下载中:{percentage}% ({FormatFileSize(bytesRead)} / {FormatFileSize(totalBytes)})";
+                    speedLabel.Text = $"速度:{speedInfo.Speed:F2}MB/s";
+                    etaLabel.Text = $"剩余时间: {speedInfo.ETA}";
+                };
+
                 if (progressBar.InvokeRequired)
                 {
-                    progressBar.Invoke(new Action(() => {
-                        progressBar.Value = percentage;
-                        statusLabel.Text = $"下载中: {percentage}% ({FormatFileSize(bytesRead)} / {FormatFileSize(totalBytes)})";
-                        speedLabel.Text = $"速度: {speedInfo.Speed:F1} {speedInfo.Unit}";
-                    }));
+                    progressBar.Invoke(updateAction);
                 }
                 else
                 {
-                    progressBar.Value = percentage;
-                    statusLabel.Text = $"下载中: {percentage}% ({FormatFileSize(bytesRead)} / {FormatFileSize(totalBytes)})";
-                    speedLabel.Text = $"速度: {speedInfo.Speed:F1} {speedInfo.Unit}";
+                    updateAction();
                 }
             }
 
@@ -1720,7 +1825,7 @@ namespace AssetStudio.GUI
                             }
                             catch (Exception ex)
                             {
-                                MessageBox.Show($"卸载{plugin.DisplayName}失败: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                MessageBox.Show($"卸载{plugin.DisplayName}失败:{ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                             }
                         }
                     }
@@ -1751,7 +1856,7 @@ namespace AssetStudio.GUI
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"刷新主菜单失败: {ex.Message}");
+                    Debug.WriteLine($"刷新主菜单失败:{ex.Message}");
                 }
             }
         }
